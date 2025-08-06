@@ -2,7 +2,7 @@
 
 using Dalamud.Interface.Windowing;
 using Dalamud.Logging;
-using ImGuiNET;
+using Dalamud.Bindings.ImGui;
 
 namespace Dalamud.CharacterSync.Interface
 {
