@@ -23,10 +23,12 @@ namespace Dalamud.CharacterSync.Interface
         /// <inheritdoc/>
         public override void Draw()
         {
+            ImGui.PushTextWrapPos();
             ImGui.Text("This window allows you to configure Character Sync.");
             ImGui.Text("Click the button below while being logged in on your main character - all logins from now on will use this character's save data!");
             ImGui.Text("None of your save data will be modified.");
             ImGui.Text("Please note that it is recommended to restart your game after changing these settings.");
+            ImGui.PopTextWrapPos();
             ImGui.Separator();
 
             if (Service.ClientState.LocalPlayer == null)
