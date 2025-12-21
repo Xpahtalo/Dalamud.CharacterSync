@@ -1,6 +1,6 @@
-﻿<Project Sdk="Dalamud.NET.Sdk/13.0.0">
+﻿<Project Sdk="Dalamud.NET.Sdk/14.0.1">
   <PropertyGroup Label="Target">
-	<AssemblyVersion>2.0.0.15</AssemblyVersion>
+	<AssemblyVersion>2.0.0.16</AssemblyVersion>
   </PropertyGroup>
 
   <PropertyGroup Label="Documentation">

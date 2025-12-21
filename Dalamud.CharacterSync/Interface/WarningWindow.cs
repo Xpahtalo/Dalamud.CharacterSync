@@ -43,18 +43,16 @@ namespace Dalamud.CharacterSync.Interface
         public override void Draw()
         {
             ImGui.SetWindowFontScale(4.0f);
-
             TextCentered("HEY.");
-            TextCentered("Please set up");
-            TextCentered("Character Data Sync");
-            TextCentered("and restart your game!");
-
+            
             ImGui.SetWindowFontScale(2.0f);
-
-            TextCentered("only then, it will work :)");
-
-            ImGui.SetWindowFontScale(1.0f);
-
+            ImGui.PushTextWrapPos();
+            ImGui.Text("Character Data Sync has just been installed or updated. If this is your first time, please check the settings (you can use /pcharsync in chat). If it's just an update, no need to change anything. No matter what, you need to restart your game now to get everything working.");
+            ImGui.PopTextWrapPos();
+            TextCentered(" ");
+            TextCentered("It's for the safety of your data.");
+            
+            return;
             void TextCentered(string text)
             {
                 ImGui.SetCursorPosX((ImGui.GetWindowSize().X - ImGui.CalcTextSize(text).X) * 0.5f);
