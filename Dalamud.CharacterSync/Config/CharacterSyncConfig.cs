@@ -1,9 +1,8 @@
 ﻿using System.Diagnostics.CodeAnalysis;
 
-using Dalamud.CharacterSync;
 using Dalamud.Configuration;
 
-namespace Dalamud.RichPresence.Config
+namespace Dalamud.CharacterSync.Config
 {
     /// <summary>
     /// Plugin configuration.
