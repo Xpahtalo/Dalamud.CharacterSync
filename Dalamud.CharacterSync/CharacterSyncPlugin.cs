@@ -133,10 +133,17 @@ namespace Dalamud.CharacterSync
             var thisBackupFolder = Path.Combine(backupFolder.FullName, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
             Directory.CreateDirectory(thisBackupFolder);
 
-            var xivFolder = new DirectoryInfo(Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-                "My Games",
-                "FINAL FANTASY XIV - A Realm Reborn"));
+            var xivFolderPath = string.Empty;
+            unsafe
+            {
+                var framework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance();
+                if (framework is not null)
+                {
+                    xivFolderPath = framework->UserPathString;
+                }
+            }
+
+            var xivFolder = new DirectoryInfo(xivFolderPath);
 
             if (!xivFolder.Exists)
             {
