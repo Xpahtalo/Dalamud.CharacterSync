@@ -8,6 +8,7 @@ using Dalamud.CharacterSync.Config;
 using Dalamud.CharacterSync.Interface;
 using Dalamud.Game.Command;
 using Dalamud.Hooking;
+using Dalamud.Interface.ImGuiNotification;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
@@ -23,11 +24,8 @@ namespace Dalamud.CharacterSync
 
         private readonly WindowSystem windowSystem;
         private readonly ConfigWindow configWindow;
-        private readonly WarningWindow warningWindow;
 
-        private readonly bool isSafeMode = false;
-
-        private readonly Hook<FileInterfaceOpenFileDelegate> openFileHook;
+        private Hook<FileInterfaceOpenFileDelegate>? openFileHook;
         private readonly Regex saveFolderRegex = new(
             @"(?<path>.*)FFXIV_CHR(?<cid>.*)\/(?!ITEMODR\.DAT|ITEMFDR\.DAT|GEARSET\.DAT|UISAVE\.DAT|.*\.log)(?<dat>.*)",
             RegexOptions.Compiled | RegexOptions.CultureInvariant);
@@ -44,10 +42,8 @@ namespace Dalamud.CharacterSync
             Service.Configuration = Service.Interface.GetPluginConfig() as CharacterSyncConfig ?? new CharacterSyncConfig();
 
             this.configWindow = new();
-            this.warningWindow = new();
             this.windowSystem = new("CharacterSync");
             this.windowSystem.AddWindow(this.configWindow);
-            this.windowSystem.AddWindow(this.warningWindow);
 
             Service.Interface.UiBuilder.Draw += this.windowSystem.Draw;
             Service.Interface.UiBuilder.OpenConfigUi += this.OnOpenConfigUi;
@@ -58,35 +54,43 @@ namespace Dalamud.CharacterSync
                 ShowInHelp = true,
             });
 
-            if (Service.Interface.Reason == PluginLoadReason.Installer)
-            {
-                PluginLog.Warning("Installer, safe mode...");
-                this.isSafeMode = true;
-            }
-            // else if (Service.ClientState.LocalPlayer != null)
-            // https://discord.com/channels/581875019861328007/719513457988337724/1354674734947897516
-            else if (Service.ClientState.IsLoggedIn)
-            {
-                PluginLog.Warning("Boot while logged in, safe mode...");
-                this.isSafeMode = true;
 
-                this.warningWindow.IsOpen = true;
-            }
-
-            try
+            PluginLog.Information($"Load Reason: {Service.Interface.Reason}");
+            switch (Service.Interface.Reason)
             {
-                this.DoBackup();
+                case PluginLoadReason.Boot:
+                    this.AttemptBackup();
+                    this.EnableFunctionality();
+                    break;
+                case PluginLoadReason.Installer:
+                    Service.NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Character Data Sync has been installed, but it won't do anything until you configure it and restart your game. Please use /pcharsync to access the settings.",
+                        MinimizedText = "Setup needed!",
+                        Type = NotificationType.Warning,
+                        InitialDuration = TimeSpan.MaxValue,
+                        ShowIndeterminateIfNoExpiry = false,
+                    });
+                    break;
+                case PluginLoadReason.Update:
+                    Service.NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Character Data Sync has been updated. It will not function until you restart your game.",
+                        MinimizedText = "Restart required!",
+                        Type = NotificationType.Warning,
+                        InitialDuration = TimeSpan.FromSeconds(60),
+                    });
+                    break;
+                default:
+                    Service.NotificationManager.AddNotification(new Notification
+                    {
+                        Content = "Character Data Sync has been loaded in the middle of gameplay so it has automatically disabled itself. It will not function until you restart your game.",
+                        MinimizedText = "Restart required!",
+                        Type = NotificationType.Warning,
+                        InitialDuration = TimeSpan.FromSeconds(60),
+                    });
+                    break;
             }
-            catch (Exception ex)
-            {
-                PluginLog.Error(ex, "Could not backup character data files.");
-            }
-
-            var address = new PluginAddressResolver();
-            address.Setup(Service.Scanner);
-
-            this.openFileHook = Service.Interop.HookFromAddress<FileInterfaceOpenFileDelegate>(address.FileInterfaceOpenFileAddress, this.OpenFileDetour);
-            this.openFileHook.Enable();
         }
 
         private delegate IntPtr FileInterfaceOpenFileDelegate(
@@ -102,7 +106,6 @@ namespace Dalamud.CharacterSync
         {
             Service.CommandManager.RemoveHandler("/pcharsync");
             Service.Interface.UiBuilder.Draw -= this.windowSystem.Draw;
-            this.warningWindow?.Dispose();
             this.openFileHook?.Dispose();
         }
 
@@ -116,54 +119,70 @@ namespace Dalamud.CharacterSync
             this.configWindow.Toggle();
         }
 
-        private void DoBackup()
+        private void EnableFunctionality()
         {
-            var configFolder = Service.Interface.GetPluginConfigDirectory();
-            Directory.CreateDirectory(configFolder);
+            var address = new PluginAddressResolver();
+            address.Setup(Service.Scanner);
 
-            var backupFolder = new DirectoryInfo(Path.Combine(configFolder, "backups"));
-            Directory.CreateDirectory(backupFolder.FullName);
+            this.openFileHook = Service.Interop.HookFromAddress<FileInterfaceOpenFileDelegate>(address.FileInterfaceOpenFileAddress, this.OpenFileDetour);
+            this.openFileHook.Enable();
+        }
 
-            var folders = backupFolder.GetDirectories().OrderBy(x => long.Parse(x.Name)).ToArray();
-            if (folders.Length > 2)
+        private void AttemptBackup()
+        {
+            try
             {
-                folders.FirstOrDefault()?.Delete(true);
-            }
+                var configFolder = Service.Interface.GetPluginConfigDirectory();
+                Directory.CreateDirectory(configFolder);
 
-            var thisBackupFolder = Path.Combine(backupFolder.FullName, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
-            Directory.CreateDirectory(thisBackupFolder);
+                var backupFolder = new DirectoryInfo(Path.Combine(configFolder, "backups"));
+                Directory.CreateDirectory(backupFolder.FullName);
 
-            var xivFolderPath = string.Empty;
-            unsafe
-            {
-                var framework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance();
-                if (framework is not null)
+                var folders = backupFolder.GetDirectories().OrderBy(x => long.Parse(x.Name)).ToArray();
+                if (folders.Length > 2)
                 {
-                    xivFolderPath = framework->UserPathString;
+                    folders.FirstOrDefault()?.Delete(true);
                 }
-            }
 
-            var xivFolder = new DirectoryInfo(xivFolderPath);
+                var thisBackupFolder = Path.Combine(backupFolder.FullName, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+                Directory.CreateDirectory(thisBackupFolder);
 
-            if (!xivFolder.Exists)
-            {
-                PluginLog.Error("Could not find XIV folder.");
-                return;
-            }
-
-            foreach (var directory in xivFolder.GetDirectories("FFXIV_CHR*"))
-            {
-                var thisBackupFile = Path.Combine(thisBackupFolder, directory.Name);
-                PluginLog.Information(thisBackupFile);
-                Directory.CreateDirectory(thisBackupFile);
-
-                foreach (var filePath in directory.GetFiles("*.DAT"))
+                var xivFolderPath = string.Empty;
+                unsafe
                 {
-                    File.Copy(filePath.FullName, filePath.FullName.Replace(directory.FullName, thisBackupFile), true);
+                    var framework = FFXIVClientStructs.FFXIV.Client.System.Framework.Framework.Instance();
+                    if (framework is not null)
+                    {
+                        xivFolderPath = framework->UserPathString;
+                    }
                 }
-            }
 
-            PluginLog.Information("Backup OK!");
+                var xivFolder = new DirectoryInfo(xivFolderPath);
+
+                if (!xivFolder.Exists)
+                {
+                    PluginLog.Error("Could not find XIV folder.");
+                    return;
+                }
+
+                foreach (var directory in xivFolder.GetDirectories("FFXIV_CHR*"))
+                {
+                    var thisBackupFile = Path.Combine(thisBackupFolder, directory.Name);
+                    PluginLog.Information(thisBackupFile);
+                    Directory.CreateDirectory(thisBackupFile);
+
+                    foreach (var filePath in directory.GetFiles("*.DAT"))
+                    {
+                        File.Copy(filePath.FullName, filePath.FullName.Replace(directory.FullName, thisBackupFile), true);
+                    }
+                }
+
+                PluginLog.Information("Backup OK!");
+            }
+            catch (Exception ex)
+            {
+                PluginLog.Error(ex, $"Could not backup character data files.\n{ex.Message}");
+            }
         }
 
         private IntPtr OpenFileDetour(IntPtr pFileInterface, [MarshalAs(UnmanagedType.LPWStr)] string filepath, uint a3)
@@ -178,11 +197,7 @@ namespace Dalamud.CharacterSync
                         var rootPath = match.Groups["path"].Value;
                         var datName = match.Groups["dat"].Value;
 
-                        if (this.isSafeMode)
-                        {
-                            PluginLog.Information($"SAFE MODE: {filepath}");
-                        }
-                        else if (this.PerformRewrite(datName))
+                        if (this.PerformRewrite(datName))
                         {
                             filepath = $"{rootPath}FFXIV_CHR{Service.Configuration.Cid:X16}/{datName}";
                             PluginLog.Debug("REWRITE: " + filepath);

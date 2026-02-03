@@ -50,5 +50,11 @@ namespace Dalamud.CharacterSync
         /// </summary>
         [PluginService]
         internal static ISigScanner Scanner { get; private set; } = null!;
+
+        /// <summary>
+        /// Gets the notification manager.
+        /// </summary>
+        [PluginService]
+        internal static INotificationManager NotificationManager { get; private set; } = null!;
     }
 }
