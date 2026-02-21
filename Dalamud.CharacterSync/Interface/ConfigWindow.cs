@@ -1,8 +1,9 @@
-﻿using System.Numerics;
+﻿using System;
+using System.IO;
+using System.Numerics;
 
-using Dalamud.Interface.Windowing;
-using Dalamud.Logging;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Interface.Windowing;
 
 namespace Dalamud.CharacterSync.Interface
 {
@@ -60,6 +61,22 @@ namespace Dalamud.CharacterSync.Interface
             ImGui.Text($"The logged in character is {Service.ClientState.LocalPlayer.Name} on {Service.ClientState.LocalPlayer.HomeWorld.Value.Name}(FFXIV_CHR{Service.ClientState.LocalContentId:X16})");
 
             ImGui.Dummy(new Vector2(20, 20));
+
+            ImGui.Text("Backups to keep:");
+            ImGui.SameLine();
+            ImGui.InputInt(string.Empty, ref Service.Configuration.BackupCount, 1, 10);
+            if (ImGui.Button("Open Backups Folder"))
+            {
+                var path = Path.Combine(Service.Interface.GetPluginConfigDirectory(), "backups");
+                try
+                {
+                    Utility.Util.OpenLink(path);
+                }
+                catch (Exception e)
+                {
+                    CharacterSyncPlugin.PluginLog.Error(e, "Failed to open backups folder.");
+                }
+            }
 
             ImGui.Checkbox("Sync Hotbars", ref Service.Configuration.SyncHotbars);
             ImGui.Checkbox("Sync Macros", ref Service.Configuration.SyncMacro);

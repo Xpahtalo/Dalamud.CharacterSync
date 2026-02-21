@@ -139,7 +139,7 @@ namespace Dalamud.CharacterSync
                 Directory.CreateDirectory(backupFolder.FullName);
 
                 var folders = backupFolder.GetDirectories().OrderBy(x => long.Parse(x.Name)).ToArray();
-                if (folders.Length > 2)
+                if (folders.Length > Service.Configuration.BackupCount)
                 {
                     folders.FirstOrDefault()?.Delete(true);
                 }

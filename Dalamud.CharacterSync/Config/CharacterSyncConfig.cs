@@ -70,6 +70,11 @@ namespace Dalamud.CharacterSync.Config
         public string SetName;
 
         /// <summary>
+        /// Gets or sets the number of backups to keep.
+        /// </summary>
+        public int BackupCount = 7;
+
+        /// <summary>
         /// Save the configuration.
         /// </summary>
         public void Save() => Service.Interface.SavePluginConfig(this);
